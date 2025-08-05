@@ -15,40 +15,42 @@ const { BaseLayer, Overlay } = LayersControl;
 
 function App() {
 
+  const center: LatLngTuple = [51.505, -0.09];
 
-  const center: LatLngTuple = [51.505, -0.09]
-  
   const [azimuth, setAzimuth] = useState(45); // Angle in degrees
 
+  // Corrigir ordem das coordenadas para Turf.js: [longitude, latitude]
+  const turfCenter: [number, number] = [center[1], center[0]];
 
-  const lineDestination = destination([51.505, -0.09], 1, azimuth, {units: 'kilometers'});
-  const [ distancePoints, setDistancePoints] = useState(distance([51.505, -0.09], lineDestination, {units: 'kilometers'}));
-  const raioDistance = circle([-0.09, 51.505], 1, {units: 'kilometers', properties: {foo: 'bar'}});
+  // Calcular destino corretamente (1km do centro em qualquer direção)
+  const lineDestination = destination(turfCenter, 1, azimuth, {units: 'kilometers'});
 
+  // Calcular distância do centro ao destino (deve ser sempre 1km)
+  const [distancePoints, setDistancePoints] = useState(
+    distance(turfCenter, lineDestination.geometry.coordinates, {units: 'kilometers'})
+  );
+
+  // Círculo de 1km de raio (não diâmetro) - Turf espera [longitude, latitude]
+  const raioDistance = circle(turfCenter, 1, {units: 'kilometers', properties: {foo: 'bar'}});
+
+  // Corrigir linha: converter destino para [latitude, longitude] para Leaflet
   const [line, setLine] = useState<LatLngTuple[]>([
-    [51.505, -0.09], // Starting point
-    lineDestination.geometry.coordinates as LatLngTuple,  // Endpoint (initial direction)
+    center, // ponto inicial
+    [lineDestination.geometry.coordinates[1], lineDestination.geometry.coordinates[0]], // ponto final convertido
   ]);
 
-  // Function to update the line based on azimuth
+  // Função para atualizar azimute e recalcular linha e distância
   const updateAzimuth = (newAzimuth: number) => {
     setAzimuth(newAzimuth);
-    setDistancePoints(distance([51.505, -0.09], lineDestination, {units: 'meters'}))
-    // const startPoint = line[0];
-    // const distance = 0.01; // Adjust this value for the length of the line
-
-    // // Calculate new endpoint based on azimuth (simple trig, assuming small distance)
-    // const radians = (newAzimuth * Math.PI) / 180;
-    // const endPoint: LatLngTuple = [
-    //   startPoint[0] + distance * Math.cos(radians),
-    //   startPoint[1] + distance * Math.sin(radians),
-    // ];
-
-    // setLine([startPoint, endPoint]);
+    // Recalcular destino e linha
+    const newDestination = destination(turfCenter, 1, newAzimuth, {units: 'kilometers'});
+    setDistancePoints(
+      distance(turfCenter, newDestination.geometry.coordinates, {units: 'kilometers'})
+    );
     setLine([
-      [51.505, -0.09], // Starting point
-      lineDestination.geometry.coordinates as LatLngTuple,  // Endpoint (initial direction)
-    ])
+      center,
+      [newDestination.geometry.coordinates[1], newDestination.geometry.coordinates[0]],
+    ]);
   };
 
 
@@ -164,23 +166,32 @@ function App() {
             </LayerGroup>
           </Overlay>
         </LayersControl>
-        <Marker position={[51.505, -0.09]}>
+        <Marker position={center}>
           <Popup>
             A pretty CSS3 popup.
             <button onClick={() => console.log(raioDistance)} >teste</button>
-          </Popup>  {/* The popup will open when you hover over the marker */}
+            <div style={{ position: 'absolute', zIndex: 1000}}>
+              <label>Azimuth: {azimuth}°</label>
+              <input
+                type="range"
+                min="0"
+                max="360"
+                value={azimuth}
+                onChange={(e) => updateAzimuth(parseInt(e.target.value))}
+              />
+            </div>
+          </Popup>
           <Tooltip sticky >Dica de ferramenta</Tooltip>
         </Marker>
-        <Marker position={lineDestination.geometry.coordinates as LatLngTuple}>
-          <Popup>Criado com turf</Popup>  {/* The popup will open when you hover over the marker */}
+        {/* <Marker position={[lineDestination.geometry.coordinates[1], lineDestination.geometry.coordinates[0]]}>
+          <Popup>Criado com turf</Popup>
           <Tooltip sticky permanent >{distancePoints}</Tooltip>
-        </Marker>
+        </Marker> */}
         <Polyline positions={line} color="blue">
           <Tooltip sticky >
             line criado com turf
           </Tooltip>
         </Polyline>
-        {/* <Circle center={center} radius={1000} /> */}
         <GeoJSON data={raioDistance} style={{}} />
         <LeafletRuler/>
       </MapContainer>
